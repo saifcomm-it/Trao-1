@@ -6,10 +6,12 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { DbStatusBanner } from './DbStatusBanner';
 
+import { useAuth } from '@/lib/auth-context';
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const pathname = usePathname() || '';
-
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -17,17 +19,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [pathname]);
 
-
   const isAuthPage =
+    pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password');
 
-  if (isAuthPage) {
+  if (isAuthPage || !user || isLoading) {
     return (
-      <main className="h-screen max-h-screen w-full overflow-hidden flex flex-col">
+      <main className="min-h-screen w-full flex flex-col">
         <DbStatusBanner />
         {children}
       </main>
