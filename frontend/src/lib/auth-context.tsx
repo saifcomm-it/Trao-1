@@ -7,14 +7,17 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  targetRole?: string;
+  seniority?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string) => Promise<void>;
-  register: (email: string, name: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
+  register: (email: string, name: string, password?: string, targetRole?: string, seniority?: string) => Promise<void>;
+  updateUser: (updatedUser: User, newToken?: string) => void;
   logout: () => void;
 }
 
@@ -36,68 +39,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         clearAuthToken();
       }
-    } else {
-      // Default demo user so testing works seamlessly right away
-      const defaultUser: User = { id: 'demo-user-1', email: 'demo@trao.dev', name: 'Demo Candidate' };
-      setUser(defaultUser);
-      setToken('demo-token-xyz');
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('trao_user', JSON.stringify(defaultUser));
-        setAuthToken('demo-token-xyz');
-      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string) => {
+  const login = async (email: string, password?: string) => {
     setIsLoading(true);
     try {
-      const res = await api.login(email);
+      const res = await api.login(email, password);
       setToken(res.token);
       setUser(res.user);
       setAuthToken(res.token);
       localStorage.setItem('trao_user', JSON.stringify(res.user));
-    } catch (err) {
-      // Fallback local login for fast UI evaluation
-      const mockUser = { id: 'user-' + Date.now(), email, name: email.split('@')[0] };
-      const mockToken = 'jwt-' + Date.now();
-      setUser(mockUser);
-      setToken(mockToken);
-      setAuthToken(mockToken);
-      localStorage.setItem('trao_user', JSON.stringify(mockUser));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (email: string, name: string) => {
+  const register = async (email: string, name: string, password?: string, targetRole?: string, seniority?: string) => {
     setIsLoading(true);
     try {
-      const res = await api.register(email, name);
+      const res = await api.register(email, name, password, targetRole, seniority);
       setToken(res.token);
       setUser(res.user);
       setAuthToken(res.token);
       localStorage.setItem('trao_user', JSON.stringify(res.user));
-    } catch (err) {
-      const mockUser = { id: 'user-' + Date.now(), email, name };
-      const mockToken = 'jwt-' + Date.now();
-      setUser(mockUser);
-      setToken(mockToken);
-      setAuthToken(mockToken);
-      localStorage.setItem('trao_user', JSON.stringify(mockUser));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const updateUser = (updatedUser: User, newToken?: string) => {
+    setUser(updatedUser);
+    localStorage.setItem('trao_user', JSON.stringify(updatedUser));
+    if (newToken) {
+      setToken(newToken);
+      setAuthToken(newToken);
     }
   };
 
   const logout = () => {
     clearAuthToken();
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('trao_user');
+    }
     setUser(null);
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

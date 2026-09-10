@@ -1,9 +1,10 @@
-import { 
-  InterviewPrepKit, 
-  UIInterviewPrepKit, 
-  QuestionCategory, 
+import {
+  InterviewPrepKit,
+  UIInterviewPrepKit,
+  QuestionCategory,
   GenerationProgress,
-  UIQuestion
+  UIQuestion,
+  UIFlashcard
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -46,6 +47,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, {
+      cache: 'no-store',
       ...options,
       headers
     });
@@ -72,17 +74,45 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   // Auth
-  async register(email: string, name: string): Promise<{ token: string; user: { id: string; email: string; name: string } }> {
+  async register(email: string, name: string, password?: string, targetRole?: string, seniority?: string): Promise<{ token: string; user: { id: string; email: string; name: string; targetRole?: string; seniority?: string } }> {
     return request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, name })
+      body: JSON.stringify({ email, name, password, targetRole, seniority })
     });
   },
 
-  async login(email: string): Promise<{ token: string; user: { id: string; email: string; name: string } }> {
+  async updateProfile(data: {
+    name?: string;
+    email?: string;
+    targetRole?: string;
+    seniority?: string;
+    currentPassword?: string;
+    newPassword?: string;
+  }): Promise<{ success: boolean; message: string; user: { id: string; email: string; name: string; targetRole?: string; seniority?: string }; token?: string }> {
+    return request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async login(email: string, password?: string): Promise<{ token: string; user: { id: string; email: string; name: string; targetRole?: string; seniority?: string } }> {
     return request('/auth/login', {
       method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+  },
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string; resetLink?: string; email?: string }> {
+    return request('/auth/forgot-password', {
+      method: 'POST',
       body: JSON.stringify({ email })
+    });
+  },
+
+  async resetPassword(token: string, password: string): Promise<{ success: boolean; message: string }> {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password })
     });
   },
 
@@ -106,16 +136,78 @@ export const api = {
     });
   },
 
+  async savePracticeProgress(kitId: string, flashcards: UIFlashcard[]): Promise<{ success: boolean; flashcards: UIFlashcard[] }> {
+    return request(`/kits/${kitId}/practice-progress`, {
+      method: 'POST',
+      body: JSON.stringify({ flashcards })
+    });
+  },
+
   async deleteKit(id: string): Promise<{ success: boolean }> {
     return request(`/kits/${id}`, {
       method: 'DELETE'
     });
   },
 
+  // Tab 1: Brief
+  async saveBrief(kitId: string, brief: { summary: string; what_they_do: string }): Promise<{ success: boolean; company_brief: any }> {
+    return request(`/kits/${kitId}/brief`, {
+      method: 'PUT',
+      body: JSON.stringify(brief)
+    });
+  },
+
+  // Tab 3: Question Bank CRUD
+  async addQuestion(kitId: string, question: UIQuestion): Promise<UIQuestion> {
+    return request(`/kits/${kitId}/questions`, {
+      method: 'POST',
+      body: JSON.stringify(question)
+    });
+  },
+
+  async updateQuestion(kitId: string, question: UIQuestion): Promise<UIQuestion> {
+    return request(`/kits/${kitId}/questions/${question.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(question)
+    });
+  },
+
+  async deleteQuestion(kitId: string, questionId: string): Promise<{ success: boolean }> {
+    return request(`/kits/${kitId}/questions/${questionId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Tab 4: Schedule
+  async saveSchedule(kitId: string, schedule: { days: any[]; days_available: number }): Promise<{ success: boolean; schedule: any }> {
+    return request(`/kits/${kitId}/schedule`, {
+      method: 'PUT',
+      body: JSON.stringify(schedule)
+    });
+  },
+
+  async generateAnswerOutline(params: {
+    prompt: string;
+    category?: QuestionCategory;
+    role?: string;
+    company?: string;
+    requirements?: any[];
+    difficulty?: number;
+    kitId?: string;
+  }): Promise<{ answer_outline: string; benchmarks?: string[]; suggested_difficulty?: number }> {
+    const endpoint = params.kitId
+      ? `/kits/${params.kitId}/generate-answer-outline`
+      : '/kits/generate-answer-outline';
+    return request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+  },
+
   // Single Section Regeneration (Section 6)
   async regenerateSection(
-    kitId: string, 
-    section: 'company_brief' | 'schedule' | 'category', 
+    kitId: string,
+    section: 'company_brief' | 'schedule' | 'category' | 'all_questions' | 'full_kit',
     category?: QuestionCategory,
     existingManualQuestions?: UIQuestion[]
   ): Promise<UIInterviewPrepKit> {
@@ -152,7 +244,7 @@ export const api = {
         }
 
         // If response is a readable stream of SSE / NDJSON progress events
-        if (response.headers.get('content-type')?.includes('text/event-stream') || 
+        if (response.headers.get('content-type')?.includes('text/event-stream') ||
             response.headers.get('content-type')?.includes('application/x-ndjson')) {
           const reader = response.body?.getReader();
           const decoder = new TextDecoder();
@@ -195,14 +287,14 @@ export const api = {
       }
     });
   },
-
-  // Creative Feature: AI Mock Answer Evaluator
+  // AI Mock Answer Evaluator — fully dynamic via Gemini, persisted to MockSession
   async evaluateAnswer(params: {
     questionPrompt: string;
     answerOutline: string;
     userAnswer: string;
+    questionId?: string;
   }): Promise<{
-    score: number; // 0-100
+    score: number;
     strengths: string[];
     gaps: string[];
     feedback: string;
@@ -211,5 +303,36 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(params)
     });
+  },
+
+  // Fetch all mock interview sessions for the current user
+  async getMockHistory(): Promise<Array<{
+    _id: string;
+    questionId?: string;
+    questionPrompt: string;
+    answerOutline?: string;
+    userAnswer: string;
+    score: number;
+    feedback: string;
+    strengths: string[];
+    gaps: string[];
+    createdAt: string;
+  }>> {
+    return request('/mock/history');
+  },
+
+  // Fetch mock sessions for a specific question
+  async getMockQuestionHistory(questionId: string): Promise<Array<{
+    _id: string;
+    questionPrompt: string;
+    answerOutline?: string;
+    userAnswer: string;
+    score: number;
+    feedback: string;
+    strengths: string[];
+    gaps: string[];
+    createdAt: string;
+  }>> {
+    return request(`/mock/history/${questionId}`);
   }
 };

@@ -1,13 +1,8 @@
-/**
- * Data contracts matching Appendix A (Kit Structure) and Appendix B (Batch Specification)
- * from the Trao Engineering Assessment.
- */
-
 export type RequirementKind = 'technical' | 'behavioural' | 'domain';
 export type RequirementPriority = 'must' | 'nice';
 
 export interface KitRequirement {
-  id: string; // e.g. "r1"
+  id: string;
   text: string;
   kind: RequirementKind;
   priority: RequirementPriority;
@@ -19,7 +14,7 @@ export interface KitSource {
   role: string;
   location: string;
   jd_chars: number;
-  researched_at: string; // ISO 8601 timestamp
+  researched_at: string;
   pages_used: string[];
 }
 
@@ -39,7 +34,7 @@ export interface KitRole {
 export type QuestionCategory = 'technical' | 'behavioural' | 'system-design' | 'company-fit';
 
 export interface KitQuestion {
-  id: string; // e.g. "q1"
+  id: string;
   requirement_ids: string[];
   category: QuestionCategory;
   prompt: string;
@@ -48,17 +43,18 @@ export interface KitQuestion {
 }
 
 export interface KitFlashcard {
-  id: string; // e.g. "f1"
+  id: string;
   front: string;
   back: string;
   requirement_ids: string[];
+  userAnswer?: string;
 }
 
 export interface ScheduleDay {
   day: number;
   focus: string;
   question_ids: string[];
-  minutes: number; // integer minutes
+  minutes: number;
 }
 
 export interface KitSchedule {
@@ -71,11 +67,10 @@ export interface KitCoverage {
   passes: number;
 }
 
-/**
- * Strict Appendix A Interview Prep Kit Schema
- */
+
 export interface InterviewPrepKit {
   id?: string;
+  _id?: string;
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -88,12 +83,7 @@ export interface InterviewPrepKit {
   coverage: KitCoverage;
 }
 
-/**
- * Builder UI State Layer:
- * To solve the "hardest state problem" (Section 6), each question, flashcard, and brief
- * carries metadata to track whether it's generated, manually added, or edited by the user,
- * plus a pin flag. When a category is regenerated, all user-modified or pinned items survive.
- */
+
 export type ItemOrigin = 'generated' | 'edited' | 'manual';
 
 export interface UIQuestion extends KitQuestion {
@@ -106,6 +96,7 @@ export interface UIFlashcard extends KitFlashcard {
   isPinned?: boolean;
   confidence?: 'unreviewed' | 'low' | 'medium' | 'high';
   lastPracticedAt?: string;
+  userAnswer?: string;
 }
 
 export interface UICompanyBrief extends CompanyBrief {
@@ -118,9 +109,7 @@ export interface UIInterviewPrepKit extends InterviewPrepKit {
   company_brief: UICompanyBrief;
 }
 
-/**
- * Batch case definitions (Appendix B)
- */
+
 export interface BatchCaseInput {
   id: string;
   jd: string;
@@ -144,10 +133,8 @@ export interface BatchEvaluationOutput {
   kits: BatchCaseResult[];
 }
 
-/**
- * Generation step tracking for real-time progress (Section 12)
- */
-export type GenerationPhase = 
+
+export type GenerationPhase =
   | 'idle'
   | 'fetching_company'
   | 'crawling_hiring_pages'
